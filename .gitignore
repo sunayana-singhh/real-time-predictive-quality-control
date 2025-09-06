@@ -1,0 +1,66 @@
+# IntelliInspect .gitignore
+
+# Docker
+.dockerignore
+
+# Frontend (Angular)
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/coverage/
+frontend/.nyc_output/
+
+# Backend (.NET)
+backend/bin/
+backend/obj/
+backend/.vs/
+backend/.vscode/
+backend/*.user
+backend/*.suo
+backend/*.cache
+backend/Properties/launchSettings.json
+
+# ML Service (Python)
+ml-service/__pycache__/
+ml-service/*.pyc
+ml-service/*.pyo
+ml-service/*.pyd
+ml-service/.Python
+ml-service/env/
+ml-service/venv/
+ml-service/.venv/
+ml-service/.pytest_cache/
+ml-service/.coverage
+ml-service/htmlcov/
+
+# Data files
+backend/data/
+ml-service/data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
