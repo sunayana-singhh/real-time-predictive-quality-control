@@ -1,8 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { DateRangeConfig, TrainingResult } from '../../models/dataset.model';
+import { Chart, ChartConfiguration, registerables } from 'chart.js';
 
 @Component({
   selector: 'app-training',
@@ -243,16 +244,25 @@ import { DateRangeConfig, TrainingResult } from '../../models/dataset.model';
     }
   `]
 })
-export class TrainingComponent implements OnInit {
+export class TrainingComponent implements OnInit, AfterViewInit {
+  @ViewChild('trainingChart', { static: false }) trainingChartRef!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('confusionChart', { static: false }) confusionChartRef!: ElementRef<HTMLCanvasElement>;
+
   trainingResult: TrainingResult | null = null;
   isTraining = false;
   trainingProgress = 0;
   errorMessage = '';
+  
+  private trainingChart: Chart | null = null;
+  private confusionChart: Chart | null = null;
 
   constructor(
     private apiService: ApiService,
     private router: Router
-  ) {}
+  ) {
+    // Register Chart.js components
+    Chart.register(...registerables);
+  }
 
   ngOnInit(): void {
     // Check if we have the required configuration
@@ -264,6 +274,15 @@ export class TrainingComponent implements OnInit {
 
     // Load existing training result if available
     this.trainingResult = this.apiService.getCurrentTrainingResult();
+    
+    // If we have existing results, draw charts after view init
+    if (this.trainingResult) {
+      setTimeout(() => this.drawCharts(), 100);
+    }
+  }
+
+  ngAfterViewInit(): void {
+    // Charts will be initialized when training completes
   }
 
   trainModel(): void {
@@ -293,8 +312,7 @@ export class TrainingComponent implements OnInit {
         
         // Draw charts after a short delay
         setTimeout(() => {
-          this.drawTrainingChart();
-          this.drawConfusionChart();
+          this.drawCharts();
         }, 100);
       },
       error: (error) => {
@@ -306,16 +324,278 @@ export class TrainingComponent implements OnInit {
     });
   }
 
+  private drawCharts(): void {
+    this.drawTrainingChart();
+    this.drawConfusionChart();
+  }
+
   private drawTrainingChart(): void {
-    // This would integrate with Chart.js to show training progress
-    // For now, we'll just log the data
-    console.log('Drawing training chart with data:', this.trainingResult?.trainingChartData);
+    if (!this.trainingResult?.trainingChartData || !this.trainingChartRef?.nativeElement) {
+      return;
+    }
+
+    // Wait a bit for the DOM to be ready
+    setTimeout(() => {
+      if (!this.trainingChartRef?.nativeElement) {
+        setTimeout(() => this.drawTrainingChart(), 100);
+        return;
+      }
+
+      // Destroy existing chart if it exists
+      if (this.trainingChart) {
+        this.trainingChart.destroy();
+      }
+
+      const ctx = this.trainingChartRef.nativeElement.getContext('2d');
+      if (!ctx) return;
+
+      const chartData = this.trainingResult!.trainingChartData;
+
+      const config: ChartConfiguration = {
+        type: 'line',
+        data: {
+          labels: chartData.labels,
+          datasets: chartData.datasets.map(dataset => ({
+            label: dataset.label,
+            data: dataset.data,
+            borderColor: dataset.borderColor,
+            backgroundColor: dataset.backgroundColor,
+            borderWidth: 3,
+            fill: false,
+            tension: 0.4,
+            pointRadius: 5,
+            pointHoverRadius: 8,
+            pointBackgroundColor: dataset.borderColor,
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2
+          }))
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false,
+          },
+          plugins: {
+            title: {
+              display: true,
+              text: 'Training Progress Over Time',
+              font: {
+                size: 16,
+                weight: 'bold'
+              },
+              padding: 20
+            },
+            legend: {
+              display: true,
+              position: 'top',
+              labels: {
+                usePointStyle: true,
+                padding: 20,
+                font: {
+                  size: 12
+                }
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              titleColor: 'white',
+              bodyColor: 'white',
+              borderColor: 'rgba(255, 255, 255, 0.1)',
+              borderWidth: 1,
+              cornerRadius: 8,
+              callbacks: {
+                title: function(context) {
+                  return `Epoch ${context[0].label}`;
+                },
+                label: function(context) {
+                  const value = typeof context.parsed.y === 'number' ? 
+                    (context.parsed.y * 100).toFixed(2) + '%' : 
+                    context.parsed.y;
+                  return `${context.dataset.label}: ${value}`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Epoch',
+                font: {
+                  size: 14,
+                  weight: 'bold'
+                }
+              },
+              grid: {
+                color: 'rgba(0, 0, 0, 0.1)'
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Value',
+                font: {
+                  size: 14,
+                  weight: 'bold'
+                }
+              },
+              beginAtZero: true,
+              max: 1,
+              grid: {
+                color: 'rgba(0, 0, 0, 0.1)'
+              },
+              ticks: {
+                callback: function(value) {
+                  return typeof value === 'number' ? (value * 100).toFixed(0) + '%' : value;
+                }
+              }
+            }
+          },
+          animation: {
+            duration: 1000,
+            easing: 'easeInOutQuart'
+          }
+        }
+      };
+
+      this.trainingChart = new Chart(ctx, config);
+    }, 50);
   }
 
   private drawConfusionChart(): void {
-    // This would integrate with Chart.js to show confusion matrix
-    // For now, we'll just log the data
-    console.log('Drawing confusion chart with data:', this.trainingResult?.confusionMatrix);
+    if (!this.trainingResult?.confusionMatrix || !this.confusionChartRef?.nativeElement) {
+      return;
+    }
+
+    // Wait a bit for the DOM to be ready
+    setTimeout(() => {
+      if (!this.confusionChartRef?.nativeElement) {
+        setTimeout(() => this.drawConfusionChart(), 100);
+        return;
+      }
+
+      // Destroy existing chart if it exists
+      if (this.confusionChart) {
+        this.confusionChart.destroy();
+      }
+
+      const ctx = this.confusionChartRef.nativeElement.getContext('2d');
+      if (!ctx) return;
+
+      const confusionMatrix = this.trainingResult!.confusionMatrix;
+      
+      const data = [
+        confusionMatrix.truePositives,
+        confusionMatrix.trueNegatives,
+        confusionMatrix.falsePositives,
+        confusionMatrix.falseNegatives
+      ];
+
+      const labels = ['True Positives', 'True Negatives', 'False Positives', 'False Negatives'];
+      const colors = [
+        'rgba(40, 167, 69, 0.8)',   // Green for TP
+        'rgba(23, 162, 184, 0.8)',  // Blue for TN
+        'rgba(255, 193, 7, 0.8)',   // Yellow for FP
+        'rgba(220, 53, 69, 0.8)'    // Red for FN
+      ];
+
+      const borderColors = [
+        'rgba(40, 167, 69, 1)',
+        'rgba(23, 162, 184, 1)',
+        'rgba(255, 193, 7, 1)',
+        'rgba(220, 53, 69, 1)'
+      ];
+
+      const config: ChartConfiguration<'doughnut'> = {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: colors,
+            borderColor: borderColors,
+            borderWidth: 3,
+            hoverBorderWidth: 5,
+            hoverOffset: 10
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '60%',
+          plugins: {
+            title: {
+              display: true,
+              text: 'Confusion Matrix Distribution',
+              font: {
+                size: 16,
+                weight: 'bold'
+              },
+              padding: 20
+            },
+            legend: {
+              display: true,
+              position: 'right',
+              labels: {
+                usePointStyle: true,
+                padding: 15,
+                font: {
+                  size: 11
+                },
+                generateLabels: function(chart) {
+                  const data = chart.data;
+                  if (data.labels?.length && data.datasets.length) {
+                    return data.labels.map((label, i) => {
+                      const value = data.datasets[0].data[i];
+                      const backgroundColor = Array.isArray(data.datasets[0].backgroundColor) ? 
+                        data.datasets[0].backgroundColor[i] : data.datasets[0].backgroundColor;
+                      const borderColor = Array.isArray(data.datasets[0].borderColor) ? 
+                        data.datasets[0].borderColor[i] : data.datasets[0].borderColor;
+                      return {
+                        text: `${label}: ${value}`,
+                        fillStyle: backgroundColor as string,
+                        strokeStyle: borderColor as string,
+                        lineWidth: 2,
+                        pointStyle: 'circle'
+                      };
+                    });
+                  }
+                  return [];
+                }
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              titleColor: 'white',
+              bodyColor: 'white',
+              borderColor: 'rgba(255, 255, 255, 0.1)',
+              borderWidth: 1,
+              cornerRadius: 8,
+              callbacks: {
+                label: function(context) {
+                  const label = context.label || '';
+                  const value = context.parsed;
+                  const total = context.dataset.data.reduce((a: number, b: any) => {
+                    const numB = typeof b === 'number' ? b : 0;
+                    return a + numB;
+                  }, 0);
+                  const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+                  return `${label}: ${value} (${percentage}%)`;
+                }
+              }
+            }
+          },
+          animation: {
+            duration: 1000,
+            easing: 'easeInOutQuart'
+          }
+        }
+      };
+
+      this.confusionChart = new Chart(ctx, config);
+    }, 50);
   }
 
   goBack(): void {
