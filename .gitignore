@@ -34,7 +34,6 @@ ml-service/.coverage
 ml-service/htmlcov/
 
 # Data files
-backend/data/
 ml-service/data/
 *.db
 *.sqlite

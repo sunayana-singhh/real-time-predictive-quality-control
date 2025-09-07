@@ -23,6 +23,17 @@ services:
     environment:
       - ML_SERVICE_URL=http://ml-service:8000
       - ConnectionStrings__DefaultConnection=Data Source=./data/dataset.db
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   ml-service:
     build:
