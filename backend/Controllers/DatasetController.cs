@@ -33,18 +33,34 @@ public class DatasetController : ControllerBase
                 return BadRequest(new { message = "No file uploaded" });
             }
 
+            if (!file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { message = "Only CSV files are supported" });
+            }
+
+            // Log file details for debugging
+            _logger.LogInformation($"Processing file: {file.FileName}, Size: {file.Length} bytes");
+
             var metadata = await _datasetService.ProcessUploadedFileAsync(file);
             return Ok(metadata);
         }
         catch (ArgumentException ex)
         {
-            _logger.LogWarning(ex, "Invalid file upload");
+            _logger.LogWarning(ex, "Invalid file upload: {Message}", ex.Message);
             return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogError(ex, "Database error while processing file: {Message}", ex.Message);
+            return StatusCode(500, new { message = "A database error occurred while processing the file" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing uploaded file");
-            return StatusCode(500, new { message = "An error occurred while processing the file" });
+            _logger.LogError(ex, "Unexpected error processing file: {Message}", ex.Message);
+            return StatusCode(500, new { 
+                message = "An unexpected error occurred while processing the file",
+                details = ex.Message
+            });
         }
     }
 
