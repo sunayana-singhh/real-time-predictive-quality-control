@@ -287,27 +287,48 @@ export class DateRangesComponent implements OnInit {
     const startDate = new Date(this.minDate);
     const endDate = new Date(this.maxDate);
     const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    const thirdDays = Math.floor(totalDays / 3);
+    
+    if (totalDays <= 2) {
+      // For very small datasets (1-2 days), use simple sequential allocation
+      this.dateConfig.training.startDate = this.minDate;
+      this.dateConfig.training.endDate = this.minDate;
+      
+      if (totalDays >= 1) {
+        this.dateConfig.testing.startDate = this.maxDate;
+        this.dateConfig.testing.endDate = this.maxDate;
+        this.dateConfig.simulation.startDate = this.maxDate;
+        this.dateConfig.simulation.endDate = this.maxDate;
+      } else {
+        // Single day dataset - use same day for all
+        this.dateConfig.testing.startDate = this.minDate;
+        this.dateConfig.testing.endDate = this.minDate;
+        this.dateConfig.simulation.startDate = this.minDate;
+        this.dateConfig.simulation.endDate = this.minDate;
+      }
+    } else {
+      // For larger datasets, use thirds as before
+      const thirdDays = Math.floor(totalDays / 3);
+      
+      // Training period (first third)
+      const trainingEnd = new Date(startDate);
+      trainingEnd.setDate(trainingEnd.getDate() + Math.max(0, thirdDays - 1));
+      this.dateConfig.training.startDate = this.minDate;
+      this.dateConfig.training.endDate = trainingEnd.toISOString().split('T')[0];
 
-    // Training period (first third)
-    const trainingEnd = new Date(startDate);
-    trainingEnd.setDate(trainingEnd.getDate() + thirdDays);
-    this.dateConfig.training.startDate = this.minDate;
-    this.dateConfig.training.endDate = trainingEnd.toISOString().split('T')[0];
+      // Testing period (second third)
+      const testingStart = new Date(trainingEnd);
+      testingStart.setDate(testingStart.getDate() + 1);
+      const testingEnd = new Date(testingStart);
+      testingEnd.setDate(testingEnd.getDate() + Math.max(0, thirdDays - 1));
+      this.dateConfig.testing.startDate = testingStart.toISOString().split('T')[0];
+      this.dateConfig.testing.endDate = testingEnd.toISOString().split('T')[0];
 
-    // Testing period (second third)
-    const testingStart = new Date(trainingEnd);
-    testingStart.setDate(testingStart.getDate() + 1);
-    const testingEnd = new Date(testingStart);
-    testingEnd.setDate(testingEnd.getDate() + thirdDays);
-    this.dateConfig.testing.startDate = testingStart.toISOString().split('T')[0];
-    this.dateConfig.testing.endDate = testingEnd.toISOString().split('T')[0];
-
-    // Simulation period (remaining)
-    const simulationStart = new Date(testingEnd);
-    simulationStart.setDate(simulationStart.getDate() + 1);
-    this.dateConfig.simulation.startDate = simulationStart.toISOString().split('T')[0];
-    this.dateConfig.simulation.endDate = this.maxDate;
+      // Simulation period (remaining)
+      const simulationStart = new Date(testingEnd);
+      simulationStart.setDate(simulationStart.getDate() + 1);
+      this.dateConfig.simulation.startDate = simulationStart.toISOString().split('T')[0];
+      this.dateConfig.simulation.endDate = this.maxDate;
+    }
   }
 
   getMinTestingDate(): string {

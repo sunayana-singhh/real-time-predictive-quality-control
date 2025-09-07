@@ -1,6 +1,15 @@
 namespace IntelliInspect.Backend.Models;
 
 /// <summary>
+/// Simple date range for DatasetMetadata (matches frontend interface)
+/// </summary>
+public class SimpleDateRange
+{
+    public string Start { get; set; } = string.Empty;
+    public string End { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// Dataset metadata information
 /// </summary>
 public class DatasetMetadata
@@ -9,7 +18,7 @@ public class DatasetMetadata
     public int TotalRecords { get; set; }
     public int TotalColumns { get; set; }
     public double PassRate { get; set; }
-    public DateRange DateRange { get; set; } = new();
+    public SimpleDateRange DateRange { get; set; } = new();
 }
 
 /// <summary>
@@ -132,5 +141,17 @@ public class DatasetRecord
     public int Id { get; set; }
     public DateTime SyntheticTimestamp { get; set; }
     public int Response { get; set; }
-    public Dictionary<string, double> Features { get; set; } = new();
+    
+    // Store features as JSON string in database
+    public string FeaturesJson { get; set; } = string.Empty;
+    
+    // Non-mapped property for programmatic access
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public Dictionary<string, double> Features 
+    { 
+        get => string.IsNullOrEmpty(FeaturesJson) 
+            ? new Dictionary<string, double>() 
+            : System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, double>>(FeaturesJson) ?? new Dictionary<string, double>();
+        set => FeaturesJson = System.Text.Json.JsonSerializer.Serialize(value);
+    }
 }
